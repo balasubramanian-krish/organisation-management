@@ -34,14 +34,13 @@ router.post('/login', passport.authenticate('local'), (req, res) => {
 
 router.get('/users', async (req, res) => {
   try {
-    
-    User.find({},'email name isActive roles').populate('roles').then(users => {
-      if(users.length === 0) {
-        res.status(404).send('No Users Found');
-      }
+    await User.find({isActive: 1},'email name isActive roles').populate('roles').then(users => {
       res.send(users);
-    });
+    }).catch(error=> {
+        res.status(404).send('No Users Found');
+    })
   } catch (error) {
+
     res.status(500).send('Error registering user');
   }
 });
@@ -51,7 +50,7 @@ router.get('/users/:id', async (req, res) => {
     const userId = req.params.id;
     User.findOne({_id: userId},'email name isActive roles phone').then(user => {
       res.send(user);
-    });
+    })
   } catch (error) {
     res.status(500).send('User Not Found');
   }

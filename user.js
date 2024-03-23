@@ -19,14 +19,8 @@ userSchema.pre('save', async function(next) {
   try {
     const existingUser = await this.constructor.findOne({ email: this.email });
     if (existingUser) {
-      // If user already exists, throw an error
       throw new Error('Username already exists');
     }
-    next();
-  } catch (error) {
-    next(error);
-  }
-  try {
     const hash = await bcrypt.hash(user.password, 10);
     user.password = hash;
     next(); 
