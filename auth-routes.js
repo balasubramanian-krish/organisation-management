@@ -4,12 +4,20 @@ const router = express.Router();
 const User = require('./user');
 const Roles = require('./roles');
 const bcrypt = require('bcrypt');
+const jwt = require("jsonwebtoken");
 
-const isAuthenticated = (req, res, next) => {
-  if (req.isAuthenticated()) {
-    return next();
+const authorization = (req, res, next) => {
+  const token = req.cookies.token;
+  console.log(token);
+  if (!token) {
+    return res.sendStatus(403);
   }
-  res.status(401).json({ message: 'Unauthorized' });
+  try {
+    const data = jwt.verify(token, "TOP_SECRET");
+    return next();
+  } catch {
+    return res.sendStatus(403);
+  }
 };
 
 router.post('/login', passport.authenticate('local'), (req, res) => {
@@ -17,6 +25,7 @@ router.post('/login', passport.authenticate('local'), (req, res) => {
   let jsonObj = JSON.parse(response);
   let roleId =   jsonObj.roles[0];
   let roles;
+  
   Roles.findById(roleId).then( role => {
     let responseObj = {
       "email":jsonObj.email,
@@ -27,12 +36,16 @@ router.post('/login', passport.authenticate('local'), (req, res) => {
       "roleId": role.roleId
     }
     req.session.loggedIn  = true;
-    res.send(responseObj);
+    const token = jwt.sign(responseObj, "TOP_SECRET");
+    res.cookie('token', token, {expires: new Date(Date.now() + 9999999), httpOnly: false});
+    return res
+    .status(200)
+    .json(responseObj);
   });
  
 });
 
-router.get('/users', async (req, res) => {
+router.get('/users', authorization,  async (req, res) => {
   try {
     await User.find({isActive: 1},'email name isActive roles').populate('roles').then(users => {
       res.send(users);
@@ -45,7 +58,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-router.get('/users/:id', async (req, res) => {
+router.get('/users/:id', authorization, async (req, res) => {
   try {
     const userId = req.params.id;
     User.findOne({_id: userId},'email name isActive roles phone').then(user => {
@@ -56,7 +69,7 @@ router.get('/users/:id', async (req, res) => {
   }
 });
 
-router.get('/roles', async (req, res) => {
+router.get('/roles', authorization, async (req, res) => {
   try {
     
     Roles.find({}).then(roles => {
@@ -70,7 +83,7 @@ router.get('/roles', async (req, res) => {
   }
 });
 
-router.post('/users', async (req, res) => {
+router.post('/users', authorization, async (req, res) => {
   try {
     const { email, password, name, phone } = req.body;
     const user = new User({ email, password, name, phone });
@@ -86,7 +99,7 @@ router.post('/users', async (req, res) => {
   }
 });
 
-router.put('/users', async (req, res) => {
+router.put('/users', authorization, async (req, res) => {
   try {
     const { email, name, phone, id } = req.body;
     const update = {
@@ -113,7 +126,7 @@ router.put('/users', async (req, res) => {
   }
 });
 
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', authorization,  async (req, res) => {
   try {
     const userId = req.params.id;
     User.findByIdAndDelete(userId).then(deletedUser => {
@@ -132,10 +145,10 @@ router.delete('/users/:id', async (req, res) => {
 });
 
 router.get('/logout', (req, res) => {
-    req.logout(function(err) {
-        if (err) { return next(err); }
-        res.send('Logout successful');
-    });
+  return res
+  .clearCookie("token")
+  .status(200)
+  .json({ message: "Successfully logged out" });
 });
 
 module.exports = router;
